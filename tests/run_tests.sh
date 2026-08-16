@@ -13,6 +13,9 @@ for ex in examples/*.chan; do
     fi
     out=$("$CHAN" "$ex" 2>&1)
     want=$(cat "$exp")
+    # Normalize CRLF so error output (stderr) matches on Windows and Linux.
+    out=$(printf '%s' "$out" | tr -d '\r')
+    want=$(printf '%s' "$want" | tr -d '\r')
     if [ "$out" = "$want" ]; then
         echo "PASS $name"
     else

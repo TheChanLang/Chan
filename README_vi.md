@@ -170,6 +170,7 @@ int main(void) {
 - Bộ nhớ kiểu arena đơn giản: AST do `chan_parse` cấp và được giải phóng cùng
   `free_program`; giá trị tự giải phóng khi scope ra khỏi phạm vi
   (`scope_free`), không có GC.
-- So sánh `array`/`map` là so sánh danh tính (con trỏ), không so sánh sâu.
+- So sánh `array`/`map` là so sánh sâu (đệ quy, có giới hạn độ sâu để
+  giá trị tự tham chiếu không lặp vô hạn).
 - Phần tử mảng/map là move vào; key của map được copy vào bảng băm
   (open addressing, tombstone).

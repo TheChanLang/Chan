@@ -13,21 +13,33 @@ static Token make_token(TokenType type, const char* literal, int line) {
     return tok;
 }
 
+// The lexer owns every literal it allocates; free_lexer() releases them all.
+// Pointers stay valid for the lifetime of the lexer (each literal is its own
+// malloc, so the array realloc never invalidates them).
+static const char* lex_keep(Lexer* l, char* s) {
+    if (l->n_literals >= l->cap_literals) {
+        l->cap_literals = l->cap_literals ? l->cap_literals * 2 : 32;
+        l->literals = realloc(l->literals, l->cap_literals * sizeof(char*));
+    }
+    l->literals[l->n_literals++] = s;
+    return s;
+}
+
 // Helper to create token from a single character
-static Token make_char_token(TokenType type, char ch, int line) {
+static Token make_char_token(Lexer* l, TokenType type, char ch, int line) {
     char* literal = malloc(2);
     literal[0] = ch;
     literal[1] = '\0';
-    return make_token(type, literal, line);
+    return make_token(type, lex_keep(l, literal), line);
 }
 
 // Helper to create a two-character operator token (==, !=, <=, >=, &&, ||)
-static Token make_two_char_token(TokenType type, char c1, char c2, int line) {
+static Token make_two_char_token(Lexer* l, TokenType type, char c1, char c2, int line) {
     char* literal = malloc(3);
     literal[0] = c1;
     literal[1] = c2;
     literal[2] = '\0';
-    return make_token(type, literal, line);
+    return make_token(type, lex_keep(l, literal), line);
 }
 
 void read_char(Lexer* l) {
@@ -46,11 +58,19 @@ Lexer* new_lexer(const char* input) {
     l->line = 1;
     l->readPosition = 0;
     l->position = 0;
+    l->literals = NULL;
+    l->n_literals = 0;
+    l->cap_literals = 0;
     read_char(l);
     return l;
 }
 
 void free_lexer(Lexer* l) {
+    if (!l) return;
+    for (int i = 0; i < l->n_literals; i++) {
+        free(l->literals[i]);
+    }
+    free(l->literals);
     free(l);
 }
 
@@ -77,7 +97,7 @@ const char* read_identifier(Lexer* l) {
     char* ident = malloc(length + 1);
     strncpy(ident, l->input + startPos, length);
     ident[length] = '\0';
-    return ident;
+    return lex_keep(l, ident);
 }
 
 // Reads a number literal (int or float)
@@ -97,7 +117,7 @@ const char* read_number(Lexer* l) {
     char* num = malloc(length + 1);
     strncpy(num, l->input + startPos, length);
     num[length] = '\0';
-    return num;
+    return lex_keep(l, num);
 }
 
 // Reads a string literal "..." — minimal escapes: \n \t \\ \"
@@ -127,7 +147,7 @@ const char* read_string(Lexer* l) {
     }
     buf[len] = '\0';
     if (l->ch == '"') read_char(l); // consume closing "
-    return buf;
+    return lex_keep(l, buf);
 }
 
 // Lookup function for keywords
@@ -166,92 +186,92 @@ Token next_token(Lexer* l) {
             if (peek_char(l) == '=') {
                 char prev = l->ch;
                 read_char(l);
-                tok = make_two_char_token(TOKEN_EQ, prev, l->ch, l->line);
+                tok = make_two_char_token(l, TOKEN_EQ, prev, l->ch, l->line);
             } else {
-                tok = make_char_token(TOKEN_ASSIGN, l->ch, l->line);
+                tok = make_char_token(l, TOKEN_ASSIGN, l->ch, l->line);
             }
             break;
         case '!':
             if (peek_char(l) == '=') {
                 char prev = l->ch;
                 read_char(l);
-                tok = make_two_char_token(TOKEN_NOT_EQ, prev, l->ch, l->line);
+                tok = make_two_char_token(l, TOKEN_NOT_EQ, prev, l->ch, l->line);
             } else {
-                tok = make_char_token(TOKEN_BANG, l->ch, l->line);
+                tok = make_char_token(l, TOKEN_BANG, l->ch, l->line);
             }
             break;
         case '<':
             if (peek_char(l) == '=') {
                 char prev = l->ch;
                 read_char(l);
-                tok = make_two_char_token(TOKEN_LE, prev, l->ch, l->line);
+                tok = make_two_char_token(l, TOKEN_LE, prev, l->ch, l->line);
             } else {
-                tok = make_char_token(TOKEN_LT, l->ch, l->line);
+                tok = make_char_token(l, TOKEN_LT, l->ch, l->line);
             }
             break;
         case '>':
             if (peek_char(l) == '=') {
                 char prev = l->ch;
                 read_char(l);
-                tok = make_two_char_token(TOKEN_GE, prev, l->ch, l->line);
+                tok = make_two_char_token(l, TOKEN_GE, prev, l->ch, l->line);
             } else {
-                tok = make_char_token(TOKEN_GT, l->ch, l->line);
+                tok = make_char_token(l, TOKEN_GT, l->ch, l->line);
             }
             break;
         case '&':
             if (peek_char(l) == '&') {
                 char prev = l->ch;
                 read_char(l);
-                tok = make_two_char_token(TOKEN_AND, prev, l->ch, l->line);
+                tok = make_two_char_token(l, TOKEN_AND, prev, l->ch, l->line);
             } else {
-                tok = make_char_token(TOKEN_ILLEGAL, l->ch, l->line);
+                tok = make_char_token(l, TOKEN_ILLEGAL, l->ch, l->line);
             }
             break;
         case '|':
             if (peek_char(l) == '|') {
                 char prev = l->ch;
                 read_char(l);
-                tok = make_two_char_token(TOKEN_OR, prev, l->ch, l->line);
+                tok = make_two_char_token(l, TOKEN_OR, prev, l->ch, l->line);
             } else {
-                tok = make_char_token(TOKEN_ILLEGAL, l->ch, l->line);
+                tok = make_char_token(l, TOKEN_ILLEGAL, l->ch, l->line);
             }
             break;
         case '+':
-            tok = make_char_token(TOKEN_PLUS, l->ch, l->line);
+            tok = make_char_token(l, TOKEN_PLUS, l->ch, l->line);
             break;
         case '-':
-            tok = make_char_token(TOKEN_MINUS, l->ch, l->line);
+            tok = make_char_token(l, TOKEN_MINUS, l->ch, l->line);
             break;
         case '*':
-            tok = make_char_token(TOKEN_ASTERISK, l->ch, l->line);
+            tok = make_char_token(l, TOKEN_ASTERISK, l->ch, l->line);
             break;
         case '/':
-            tok = make_char_token(TOKEN_SLASH, l->ch, l->line);
+            tok = make_char_token(l, TOKEN_SLASH, l->ch, l->line);
             break;
         case '%':
-            tok = make_char_token(TOKEN_PERCENT, l->ch, l->line);
+            tok = make_char_token(l, TOKEN_PERCENT, l->ch, l->line);
             break;
         case '(':
-            tok = make_char_token(TOKEN_LPAREN, l->ch, l->line);
+            tok = make_char_token(l, TOKEN_LPAREN, l->ch, l->line);
             break;
         case ')':
-            tok = make_char_token(TOKEN_RPAREN, l->ch, l->line);
+            tok = make_char_token(l, TOKEN_RPAREN, l->ch, l->line);
             break;
         case '{':
-            tok = make_char_token(TOKEN_LBRACE, l->ch, l->line);
+            tok = make_char_token(l, TOKEN_LBRACE, l->ch, l->line);
             break;
         case '}':
-            tok = make_char_token(TOKEN_RBRACE, l->ch, l->line);
+            tok = make_char_token(l, TOKEN_RBRACE, l->ch, l->line);
             break;
         case '[':
-            tok = make_char_token(TOKEN_LBRACKET, l->ch, l->line);
+            tok = make_char_token(l, TOKEN_LBRACKET, l->ch, l->line);
             break;
         case ']':
-            tok = make_char_token(TOKEN_RBRACKET, l->ch, l->line);
+            tok = make_char_token(l, TOKEN_RBRACKET, l->ch, l->line);
             break;
         case ',':
             // The list separator
-            tok = make_char_token(TOKEN_COMMA, l->ch, l->line);
+            tok = make_char_token(l, TOKEN_COMMA, l->ch, l->line);
             break;
         case '#':
             // Line comment: skip to end of line (or EOF)
@@ -260,21 +280,18 @@ Token next_token(Lexer* l) {
             }
             return next_token(l); // the \n is emitted as EOL by the next call
         case ':':
-            tok = make_char_token(TOKEN_COLON, l->ch, l->line);
+            tok = make_char_token(l, TOKEN_COLON, l->ch, l->line);
             break;
         case '\n':
-            tok = make_char_token(TOKEN_EOL, l->ch, l->line);
+            tok = make_char_token(l, TOKEN_EOL, l->ch, l->line);
             l->line++;
             break;
         case '\r': // Handle \r\n
             if (peek_char(l) == '\n') {
                 read_char(l); // consume the \n
-                char* rn = "\\r\\n";
-                char* literal = malloc(strlen(rn)+1);
-                strcpy(literal, rn);
-                tok = make_token(TOKEN_EOL, literal, l->line);
+                tok = make_token(TOKEN_EOL, lex_keep(l, strdup("\\r\\n")), l->line);
             } else { // Standalone \r is illegal for now
-                tok = make_char_token(TOKEN_ILLEGAL, l->ch, l->line);
+                tok = make_char_token(l, TOKEN_ILLEGAL, l->ch, l->line);
             }
             l->line++;
             break;
@@ -282,7 +299,7 @@ Token next_token(Lexer* l) {
             tok = make_token(TOKEN_STR, read_string(l), l->line);
             return tok; // Early return: read_string already advanced the lexer
         case 0:
-            tok = make_token(TOKEN_EOF, "", l->line);
+            tok = make_token(TOKEN_EOF, lex_keep(l, strdup("")), l->line);
             break;
         default:
             if (isalpha(l->ch) || l->ch == '_') {
@@ -296,7 +313,7 @@ Token next_token(Lexer* l) {
                 tok = make_token(type, literal, l->line);
                 return tok; // Early return
             } else {
-                tok = make_char_token(TOKEN_ILLEGAL, l->ch, l->line);
+                tok = make_char_token(l, TOKEN_ILLEGAL, l->ch, l->line);
             }
             break;
     }

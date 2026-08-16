@@ -9,6 +9,13 @@ typedef struct {
     int readPosition;  // current reading position in input (after current char)
     char ch;           // current char under examination
     int line;
+
+    // Every token literal produced by this lexer is malloc'd and owned
+    // here, so it can be released wholesale in free_lexer(). The parser
+    // strdup()s any literal it keeps in the AST.
+    char** literals;
+    int n_literals;
+    int cap_literals;
 } Lexer;
 
 Lexer* new_lexer(const char* input);

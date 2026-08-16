@@ -1,0 +1,5 @@
+# Moving a map into itself must never hang or loop forever.
+# The RHS `x` is evaluated first, so `x` is moved before the LHS
+# index is read — the interpreter reports a clean error instead.
+let x: map = {"a": 1}
+x["self"] = x

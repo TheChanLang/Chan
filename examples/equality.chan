@@ -1,0 +1,35 @@
+# Deep equality: arrays and maps compare structurally, element by element.
+let a: array = [1, 2, [3, 4]]
+let b: array = [1, 2, [3, 4]]
+print(a == b)          # true — same contents, different objects
+print(a != b)          # false
+b[2][0] = 99
+print(a == b)          # false — contents differ now
+let m1: map = {"x": 1, "y": [1, 2]}
+let m2: map = {"x": 1, "y": [1, 2]}
+print(m1 == m2)        # true — same contents, different objects
+m2["x"] = 2
+print(m1 == m2)        # false — contents differ now
+print([1, 2] == [1, 2])   # true — literal arrays compare deeply
+
+# Deep comparison must terminate even for nested values.
+let m: map = {"a": 1}
+m["self"] = copy m
+print(m == m)                  # true — same object, fast path
+print(m == copy m)             # true — deep, nested
+print(m["self"] == m["self"]) # true — same nested object
+let n: map = copy m
+n["self"]["a"] = 99
+print(m == n)                  # false — nested difference
+
+# 60 levels of nesting: deep comparison still terminates (bounded depth).
+fn nest(n: int): map {
+    let m: map = {}
+    while n > 0 {
+        m = {"d": copy m}
+        n = n - 1
+    }
+    return m
+}
+let deep: map = nest(60)
+print(deep == copy deep)       # true

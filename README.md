@@ -174,6 +174,7 @@ int main(void) {
 - Simple arena-style memory: the AST is allocated by `chan_parse` and released
   with `free_program`; values free themselves when a scope exits
   (`scope_free`) — no GC.
-- `array`/`map` equality is by identity (pointer), not deep.
+- `array`/`map` equality is deep (recursive, with a bounded depth so
+  self-referential values don't loop forever).
 - Array/map elements are moved in; map keys are copied into the hash table
   (open addressing, tombstones).

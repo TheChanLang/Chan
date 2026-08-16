@@ -94,8 +94,9 @@ is `float`.
 ```
 
 Numeric comparisons work across `int`/`float` (`1 == 1.0` → `true`). `str`
-comparison is lexicographic. `array`/`map` comparison is by identity
-(pointer), not deep.
+comparison is lexicographic. `array`/`map` comparison is **deep**: two
+arrays/maps are equal when they have the same contents, element by element
+(a bounded recursion depth guards against self-referential structures).
 
 ---
 
@@ -354,10 +355,8 @@ C function rules:
 
 ## 9. Current limitations
 
-- `array`/`map` equality is by identity (pointer), not deep.
+- Map keys are deep-copied into the hash table — deliberate: the map must
+  own its keys so they outlive the script variables they came from.
 - No block comments — a deliberate limitation to keep the lexer tiny and save resources on constrained devices.
 - No multiline strings — newlines delimit statements, so strings must stay on a single line; parsing multiline strings would cost extra resources.
-- Map keys are always copied (the hash table owns its keys).
-- The AST allocated by `chan_parse` is not deeply freed (`free_program` is
-  still shallow).
 - One `Chan*` per thread — but running multiple instances in parallel is safe. Chan targets embedded/IoT devices and deliberately has no multithreading; like V8 isolates, you can create independent `Chan*` instances on separate threads if you need parallelism.

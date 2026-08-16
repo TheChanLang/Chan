@@ -155,7 +155,12 @@ void chan_drop(Value* slot) {
 // Semantics
 // =================================================================
 
-int value_eq(Value* a, Value* b) {
+static int map_find(ChanMap* m, Value* key); // defined below (maps section)
+
+// Deep equality. array/map are compared structurally, element by element.
+// The depth bound keeps self-referential structures (e.g. a map that
+// contains itself) from recursing forever.
+static int value_eq_deep(Value* a, Value* b, int depth) {
     if (a->type == b->type) {
         switch (a->type) {
             case VAL_NIL:  return 1;
@@ -163,8 +168,31 @@ int value_eq(Value* a, Value* b) {
             case VAL_INT:  return a->as.i == b->as.i;
             case VAL_FLOAT:return a->as.f == b->as.f;
             case VAL_STR:  return strcmp(a->as.s, b->as.s) == 0;
-            case VAL_ARRAY:return a->as.arr == b->as.arr; // identity
-            case VAL_MAP:  return a->as.map == b->as.map; // identity
+            case VAL_ARRAY: {
+                if (a->as.arr == b->as.arr) return 1; // same object
+                if (depth <= 0) return 0;
+                ChanArray* x = a->as.arr;
+                ChanArray* y = b->as.arr;
+                if (x->len != y->len) return 0;
+                for (int i = 0; i < x->len; i++) {
+                    if (!value_eq_deep(&x->items[i], &y->items[i], depth - 1)) return 0;
+                }
+                return 1;
+            }
+            case VAL_MAP: {
+                if (a->as.map == b->as.map) return 1; // same object
+                if (depth <= 0) return 0;
+                ChanMap* x = a->as.map;
+                ChanMap* y = b->as.map;
+                if (x->count != y->count) return 0;
+                for (int i = 0; i < x->cap; i++) {
+                    if (x->slots[i].state != 1) continue;
+                    int j = map_find(y, &x->slots[i].key);
+                    if (j < 0) return 0;
+                    if (!value_eq_deep(&x->slots[i].val, &y->slots[j].val, depth - 1)) return 0;
+                }
+                return 1;
+            }
             case VAL_OBJ:  return a->as.obj == b->as.obj; // identity
             case VAL_FUNC: return a->as.fn == b->as.fn;
             case VAL_CFN:  return a->as.cfn.fn == b->as.cfn.fn;
@@ -175,6 +203,10 @@ int value_eq(Value* a, Value* b) {
     if (a->type == VAL_INT && b->type == VAL_FLOAT) return (double)a->as.i == b->as.f;
     if (a->type == VAL_FLOAT && b->type == VAL_INT) return a->as.f == (double)b->as.i;
     return 0;
+}
+
+int value_eq(Value* a, Value* b) {
+    return value_eq_deep(a, b, 64);
 }
 
 uint64_t value_hash(Value* v) {

@@ -110,7 +110,7 @@ static Identifier* new_identifier_p(Parser* p, Token token, const char* value) {
     Identifier* ident = malloc(sizeof(Identifier));
     ident->expression.node.type = NODE_IDENTIFIER;
     ident->token = token;
-    ident->value = value;
+    ident->value = strdup(value); // the AST owns its own copy
     return ident;
 }
 
@@ -512,7 +512,7 @@ static Expression* parse_string_literal(Parser* p) {
     StringLiteral* literal = malloc(sizeof(StringLiteral));
     literal->expression.node.type = NODE_STRING_LITERAL;
     literal->token = p->curToken;
-    literal->value = p->curToken.literal; // escapes already processed by the lexer
+    literal->value = strdup(p->curToken.literal); // escapes already processed by the lexer
     return (Expression*)literal;
 }
 
@@ -539,7 +539,7 @@ static Expression* parse_prefix_expression(Parser* p) {
     PrefixExpression* expr = malloc(sizeof(PrefixExpression));
     expr->expression.node.type = NODE_PREFIX_EXPRESSION;
     expr->token = p->curToken;
-    expr->operator = p->curToken.literal;
+    expr->operator = strdup(p->curToken.literal); // the AST owns its own copy
     next_token_p(p);
     expr->right = parse_expression(p, PREC_PREFIX);
     return (Expression*)expr;
@@ -663,7 +663,7 @@ static Expression* parse_infix_expression(Parser* p, Expression* left) {
     InfixExpression* expr = malloc(sizeof(InfixExpression));
     expr->expression.node.type = NODE_INFIX_EXPRESSION;
     expr->token = p->curToken;
-    expr->operator = p->curToken.literal;
+    expr->operator = strdup(p->curToken.literal); // the AST owns its own copy
     expr->left = left;
 
     Precedence precedence = get_rule(p->curToken.type)->precedence;
@@ -686,12 +686,158 @@ Program* new_program() {
     return p;
 }
 
+// =================================================================
+// Deep AST freeing
+// =================================================================
+// Every node struct and every strdup'd string owned by the AST is
+// released here. Token literals are NOT freed: they are owned by the
+// lexer and die together with it in free_lexer().
+
+static void free_expression(Expression* e) {
+    if (!e) return;
+    switch (e->node.type) {
+        case NODE_IDENTIFIER: {
+            Identifier* id = (Identifier*)e;
+            free((void*)id->value);
+            free(id);
+            break;
+        }
+        case NODE_STRING_LITERAL: {
+            StringLiteral* sl = (StringLiteral*)e;
+            free((void*)sl->value);
+            free(sl);
+            break;
+        }
+        case NODE_ARRAY_LITERAL: {
+            ArrayLiteral* al = (ArrayLiteral*)e;
+            for (int i = 0; i < al->num_elements; i++) free_expression(al->elements[i]);
+            free(al->elements);
+            free(al);
+            break;
+        }
+        case NODE_MAP_LITERAL: {
+            MapLiteral* ml = (MapLiteral*)e;
+            for (int i = 0; i < ml->num_pairs; i++) {
+                free_expression(ml->keys[i]);
+                free_expression(ml->values[i]);
+            }
+            free(ml->keys);
+            free(ml->values);
+            free(ml);
+            break;
+        }
+        case NODE_PREFIX_EXPRESSION: {
+            PrefixExpression* px = (PrefixExpression*)e;
+            free_expression(px->right);
+            free((void*)px->operator);
+            free(px);
+            break;
+        }
+        case NODE_INFIX_EXPRESSION: {
+            InfixExpression* ix = (InfixExpression*)e;
+            free_expression(ix->left);
+            free_expression(ix->right);
+            free((void*)ix->operator);
+            free(ix);
+            break;
+        }
+        case NODE_CALL_EXPRESSION: {
+            CallExpression* ce = (CallExpression*)e;
+            free_expression(ce->function);
+            for (int i = 0; i < ce->num_arguments; i++) free_expression(ce->arguments[i]);
+            free(ce->arguments);
+            free(ce);
+            break;
+        }
+        case NODE_INDEX_EXPRESSION: {
+            IndexExpression* ie = (IndexExpression*)e;
+            free_expression(ie->left);
+            free_expression(ie->index);
+            free(ie);
+            break;
+        }
+        default:
+            // Literals (int/float/bool/nil) have no children to free.
+            free(e);
+            break;
+    }
+}
+
+static void free_identifier(Identifier* id) {
+    if (!id) return;
+    free((void*)id->value);
+    free(id);
+}
+
+static void free_statement(Statement* s) {
+    if (!s) return;
+    switch (s->node.type) {
+        case NODE_LET_STATEMENT: {
+            LetStatement* ls = (LetStatement*)s;
+            free_identifier(ls->name);
+            free_identifier(ls->type);
+            free_expression(ls->value);
+            free(ls);
+            break;
+        }
+        case NODE_RETURN_STATEMENT: {
+            ReturnStatement* rs = (ReturnStatement*)s;
+            free_expression(rs->return_value);
+            free(rs);
+            break;
+        }
+        case NODE_FN_STATEMENT: {
+            FunctionStatement* fs = (FunctionStatement*)s;
+            free_identifier(fs->name);
+            free_identifier(fs->return_type);
+            for (int i = 0; i < fs->num_parameters; i++) {
+                free_identifier(fs->parameters[i].name);
+                free_identifier(fs->parameters[i].type);
+            }
+            free(fs->parameters);
+            free_statement((Statement*)fs->body);
+            free(fs);
+            break;
+        }
+        case NODE_IF_STATEMENT: {
+            IfStatement* is = (IfStatement*)s;
+            free_expression(is->condition);
+            free_statement((Statement*)is->consequence);
+            free_statement((Statement*)is->alternative);
+            free(is);
+            break;
+        }
+        case NODE_WHILE_STATEMENT: {
+            WhileStatement* ws = (WhileStatement*)s;
+            free_expression(ws->condition);
+            free_statement((Statement*)ws->body);
+            free(ws);
+            break;
+        }
+        case NODE_EXPRESSION_STATEMENT: {
+            ExpressionStatement* es = (ExpressionStatement*)s;
+            free_expression(es->expression);
+            free(es);
+            break;
+        }
+        case NODE_BLOCK_STATEMENT: {
+            BlockStatement* blk = (BlockStatement*)s;
+            for (int i = 0; i < blk->num_statements; i++) free_statement(blk->statements[i]);
+            free(blk->statements);
+            free(blk);
+            break;
+        }
+        default:
+            free(s); // cont, break — no children
+            break;
+    }
+}
+
 void free_program(Program* p) {
-    // Note: We need to free all statements and expressions in a real implementation
-    if (p && p->statements) {
-        free(p->statements);
+    if (!p) return;
+    for (int i = 0; i < p->num_statements; i++) {
+        free_statement(p->statements[i]);
     }
-    if (p) {
-        free(p);
-    }
+    free(p->statements);
+    free(p);
 }
