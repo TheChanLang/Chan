@@ -1,0 +1,50 @@
+# Chan demo. IO (print/len/push) comes from the host, not the core.
+fn fib(n: int): int {
+    if n < 2 {
+        return n
+    } else {
+        return fib(n - 1) + fib(n - 2)
+    }
+}
+
+fn add(a: int, b: int): int {
+    return a + b
+}
+
+let x: int = fib(10)
+print(copy x)          # copy keeps x alive; without it, x would move into print
+
+let y: float = 3.14
+print(y)
+
+let flag: bool = true
+print(flag)
+
+let s: str = "chan # tiny"
+print(copy s)
+
+let arr: array = [1, 2.5, x, s]   # x and s move into the array
+print(copy arr)
+print(len(copy arr))
+
+let m: map = {"a": 1, "b": 2}
+m["c"] = 3
+print(m["b"])          # indexing reads (borrows)
+print(add(2, 3))
+
+let z: int = copy m["a"]
+print(z)
+
+let i: int = 0
+let total: int = 0
+while i < 10 {
+    i = i + 1
+    if i == 5 {
+        cont
+    }
+    if i == 8 {
+        break
+    }
+    total = total + i
+}
+print(total)           # 1+2+3+4+6+7 = 23

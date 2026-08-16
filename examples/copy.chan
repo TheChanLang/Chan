@@ -1,0 +1,9 @@
+# copy duplicates a value so both variables stay alive.
+let a: int = 10
+let b: int = copy a
+print(a)           # 10
+print(b)           # 10
+
+let s1: str = "hello"
+let s2: str = copy s1
+print(s2)          # hello

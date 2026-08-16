@@ -1,0 +1,34 @@
+# Build directories (CMake / Visual Studio)
+build/
+build-size/
+out/
+cmake-build-*/
+
+# CMake artifacts
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+*.sln
+*.slnx
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# Compiled objects / binaries
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Local tooling state
+.freebuff/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

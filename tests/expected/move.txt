@@ -1,0 +1,2 @@
+10
+chan: error: line 5: undefined variable 'a'

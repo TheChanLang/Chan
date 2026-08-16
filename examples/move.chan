@@ -1,0 +1,5 @@
+# Move semantics: let b = a deletes a from the symbol table.
+let a: int = 10
+let b: int = a     # a is moved into b — a no longer exists
+print(b)           # 10
+print(a)           # runtime error: undefined variable 'a'
