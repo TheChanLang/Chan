@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build & test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (Release)
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Run interpreter tests
+        shell: bash
+        env:
+          CHAN: ${{ runner.os == 'Windows' && './build/Release/chan.exe' || './build/chan' }}
+        run: bash tests/run_tests.sh
+
+      - name: Smoke test chan_core (minimal embedding)
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            core=./build/Release/chan_core.exe
+          else
+            core=./build/chan_core
+          fi
+          [ "$("$core")" = "5" ] && echo "chan_core OK (prints 5)"
+
+  size-optimized:
+    name: Size-optimized build (Windows/MSVC)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # CHAN_SIZE_OPT sets MSVC /O1 /MD flags, so this build is Windows-only.
+      - name: Configure (CHAN_SIZE_OPT=ON)
+        run: cmake -S . -B build-size -DCHAN_SIZE_OPT=ON
+
+      - name: Build
+        run: cmake --build build-size --config Release
+
+      - name: Run interpreter tests against size build
+        shell: bash
+        env:
+          CHAN: ./build-size/Release/chan.exe
+        run: bash tests/run_tests.sh
+
+      - name: Report binary sizes
+        shell: bash
+        run: |
+          ls -la build-size/Release/chan.exe build-size/Release/chan_core.exe
