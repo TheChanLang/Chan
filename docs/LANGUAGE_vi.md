@@ -353,7 +353,8 @@ Quy tắc hàm C:
 ## 9. Giới hạn hiện tại
 
 - `array`/`map` so sánh bằng danh tính (con trỏ), không so sánh sâu.
-- Không có chuỗi đa dòng, không có comment khối.
+- Không có comment khối — hạn chế có chủ ý để giữ lexer gọn nhẹ và tiết kiệm tài nguyên trên thiết bị hạn chế.
+- Không có chuỗi đa dòng — ngôn ngữ dùng xuống dòng để phân biệt các câu lệnh, nên chuỗi phải nằm trên một dòng; việc duyệt chuỗi đa dòng tốn tài nguyên.
 - Key của map luôn được copy (bảng băm dùng key owned).
 - AST do `chan_parse` cấp chưa được giải phóng sâu (`free_program` còn sơ lược).
-- Một `Chan*` chỉ dùng một luồng — nhưng chạy nhiều instance song song là an toàn.
+- Một `Chan*` chỉ dùng một luồng — nhưng chạy nhiều instance song song là an toàn. Vì Chan là ngôn ngữ nhúng trên thiết bị IoT nên không hỗ trợ đa luồng; giống như isolate của V8, người dùng có thể khởi tạo các instance Chan độc lập trên nhiều luồng nếu muốn.

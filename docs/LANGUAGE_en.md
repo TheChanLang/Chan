@@ -355,8 +355,9 @@ C function rules:
 ## 9. Current limitations
 
 - `array`/`map` equality is by identity (pointer), not deep.
-- No multiline strings, no block comments.
+- No block comments — a deliberate limitation to keep the lexer tiny and save resources on constrained devices.
+- No multiline strings — newlines delimit statements, so strings must stay on a single line; parsing multiline strings would cost extra resources.
 - Map keys are always copied (the hash table owns its keys).
 - The AST allocated by `chan_parse` is not deeply freed (`free_program` is
   still shallow).
-- One `Chan*` per thread — but running multiple instances in parallel is safe.
+- One `Chan*` per thread — but running multiple instances in parallel is safe. Chan targets embedded/IoT devices and deliberately has no multithreading; like V8 isolates, you can create independent `Chan*` instances on separate threads if you need parallelism.
