@@ -15,6 +15,11 @@ mà vài KB cũng là quá lớn. Chan được thiết kế như một **thư v
 Tài liệu đầy đủ về từ vựng, kiểu, biểu thức, câu lệnh, move semantics và
 API nhúng C.
 
+## Benchmark
+
+- [docs/BENCHMARK_vi.md](docs/BENCHMARK_vi.md) — so sánh kích thước và tốc độ
+  với Lua, Squirrel, Wren, AngelScript, ChaiScript, MicroPython.
+
 ## Xây dựng
 
 ```bash

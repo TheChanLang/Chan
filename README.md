@@ -34,14 +34,44 @@ cmake --build build-size --config Release
 
 | Build | `chan.exe` (with demo host) | `chan_core.exe` (core only) |
 |-------|----------------------------|-----------------------------|
-| Release `/O2` (default) | 48.5 KiB | — |
-| Release `/O1` + `/MD` (`CHAN_SIZE_OPT=ON`) | 46.0 KiB | 41.0 KiB |
+| Release `/O2` (default) | 51.5 KiB | 45.0 KiB |
+| Release `/O1` + `/MD` (`CHAN_SIZE_OPT=ON`) | 47.0 KiB | 42.5 KiB |
 
 These are Windows PE binaries (including the PE header and the dynamic CRT).
 On a microcontroller with `gcc -Os` and no PE/CRT it gets smaller still. Note:
 the current tree-walking implementation with a full AST-building parser sits
-at ~41 KiB — reaching the "a few KB" goal means moving to a bytecode compiler
+at ~42 KiB — reaching the "a few KB" goal means moving to a bytecode compiler
 + VM (see Implementation notes).
+
+### Size vs other embedded languages
+
+Same toolchain: MSVC `cl` Release x64, `-O2`, dynamic CRT (`/MD`). Binaries
+include the interpreter plus a minimal demo host, as in the tables above.
+
+| Language | Binary size |
+|----------|------------:|
+| **Chan** | **51.5 KiB** |
+| Wren | 123.0 KiB |
+| Lua | 258.0 KiB |
+| Squirrel | 264.0 KiB |
+| MicroPython | 562.0 KiB |
+| AngelScript | 1222.0 KiB |
+| ChaiScript | 1441.0 KiB |
+
+Chan is ~2.4× smaller than Wren, ~5× smaller than Lua/Squirrel, and
+~24–28× smaller than AngelScript/ChaiScript.
+
+### The trade-off: speed
+
+The tiny footprint comes at a price: Chan is a **tree-walking interpreter**
+while Lua, Squirrel, Wren, AngelScript and MicroPython all compile to
+**bytecode** and run on a VM. In a `fib(30)` microbenchmark (median of 3
+runs, same machine) Chan takes ~1.30 s vs ~0.11–0.24 s for the others —
+about **5–11× slower**. This is a deliberate trade-off: the current
+interpreter favours simplicity and RAM footprint over execution speed.
+Closing the gap (and approaching the "a few KB" goal) means moving to a
+bytecode compiler + VM. Full benchmark details and methodology:
+[docs/BENCHMARK_vi.md](docs/BENCHMARK_vi.md).
 
 ## Usage
 

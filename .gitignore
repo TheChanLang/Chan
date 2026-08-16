@@ -24,6 +24,9 @@ CMakeUserPresets.json
 *.dll
 *.exe
 
+# Benchmark third-party sources (Lua, Squirrel, Wren, ...)
+bench/
+
 # Local tooling state
 .freebuff/
 
